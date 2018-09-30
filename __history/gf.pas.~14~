@@ -1,0 +1,131 @@
+unit gf;
+
+interface
+
+ type
+  GField=class
+    private
+     var
+      q: array of integer;
+      m: byte;
+      value:integer;
+      alphapow,logalpha:array of array of integer;
+
+    public
+      Constructor Create;            overload;
+      constructor GField.Create(var qvalue: integer);    overload;
+      constructor GField.Create(var qvalue, inexp: integer);  overload;
+      constructor GField.Create(var ingf: GField ); overload;
+      procedure set_size(var qvalue: integer);
+      procedure myset(var qvalue, inexp : integer);
+  end;
+
+implementation
+
+constructor GField.Create; overload;
+var i:integer;
+begin
+SetLength(q,15);
+
+for i:=0  to 14 do
+  q[i]:=1 shl i;
+
+  m:=0;
+end;
+
+constructor GField.Create(var qvalue: integer); overload;
+var i:integer;
+begin
+  SetLength(q,15);
+  m:=0;
+
+  for i:=0  to 14 do
+    q[i]:=1 shl i;
+
+  if (qvalue=0) then// qvalue==0 gives the zeroth element
+			value=-1
+  else set_size(qvalue);
+
+
+end;
+
+constructor GField.Create(var qvalue, inexp: integer); overload;
+var i:integer;
+begin
+  SetLength(q,15);
+  m:=0;
+
+  for i:=0  to 14 do
+    q[i]:=1 shl i;
+
+  myset(qvalue,inexp);
+
+
+end;
+
+// Copy constructor
+constructor GField.Create(var ingf: GField ); overload;
+var i:integer;
+begin
+  m:=0;
+  SetLength(q,15);
+
+  for i:=0  to 14 do
+    q[i]:=1 shl i;
+
+  m=ingf.m; value=ingf.value;
+
+end;
+
+procedure GField.myset(var qvalue, inexp : integer);
+begin
+		set_size(qvalue);
+		value:=inexp;
+end;
+
+//int  gf::get_value() const
+{
+    return value;
+}
+
+procedure GField.set_size(var qvalue: integer) ;
+var mtemp: integer;
+begin
+    mtemp:=0;
+
+   // mtemp = ::log(qvalue)/::log(2.0);
+
+    /* Construct gf(q), q=2^m. From Wicker, "Error Control Systems  for digital communication and storage" pp. 463-465 */
+
+   // int reduce, temp, n;
+   // const int reducetable[]={3,3,3,5,3,9,29,17,9,5,83,27,43}; // starts at m=2,..,14
+	//    it_error_if(mtemp < 1 || mtemp > 14, "createfield : m out of range");
+  //  m=mtemp;
+	//alphapow.newsize(m+1,qvalue);
+	//logalpha.newsize(m+1,qvalue);
+
+	//if (m == 1) { // gf(2), special case
+	//  alphapow[1][0];
+	//  logalpha[1][0]=-1; logalpha[1][1]=0;
+	//} else {
+
+	 // reduce=reducetable[m-2];
+	 // alphapow[m][0]=1; // alpha^0 = 1
+
+	 // for (n=1; n<(1<<m)-1; n++) {
+	 //	temp=alphapow[m][n-1];
+	 //	temp=(temp << 1); // multiply by alpha
+	 //	if (temp & (1<<m)) // contains alpha**m term
+	 //	  alphapow[m][n]=(temp & ~(1<<m))^reduce;
+	 //	else
+	 //	  alphapow[m][n]=temp; // if no alpha**m term, store as is
+		  
+		// create table to go in opposite direction
+	 //	logalpha[m][n]=-1; // special case, actually log(0)=-inf
+	 // }
+
+	  //for (n=0;n<(1<<m)-1;n++)  logalpha[m][alphapow[m][n]]=n;
+	//}
+end;
+
+end.

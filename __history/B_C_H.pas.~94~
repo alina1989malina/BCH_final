@@ -1,0 +1,361 @@
+unit B_C_H;
+
+interface
+
+uses Math, G_F, GF_x,  SysUtils, Windows;
+
+ type
+ bvec= array of byte;
+  BCH=class
+    private
+       g: GFX;
+       zeroes: array of GF;
+       chain_begin:integer;
+    public
+      n,k,t:integer;
+      Constructor Create (in_n, in_k, in_t: integer;const genpolynom : ivec );  overload  ;
+      constructor Create(const genpolynom : string ); overload  ;
+     // Constructor Create (var genpolynom : ivec );  overload  ;
+     // Constructor Create (var zeroes:GFX);  overload  ;
+      constructor Create(const inbch: BCH);   overload  ;
+      function   Showg: string;
+      function Encode(const  inuncodedbits : bvec) : bvec;
+      function Decode(const  incodedbits : bvec) : bvec;
+      function Sindrom(const  validatepol : GFX) : GFX;
+     function GetCheckPolinom : GFX;
+  end;
+
+implementation
+
+constructor BCH.Create(in_n, in_k, in_t: integer;const  genpolynom : ivec );
+var  exponents:ivec;
+          temp: bvec;
+          i,j:integer;
+begin
+  n := in_n;
+  k := in_k;
+  t := in_t;
+    //fix the generator polynomial g(x).
+  Setlength(exponents,3*Length(genpolynom));
+
+  SetLength(temp,3*Length(genpolynom));
+  for i := 0 to Length(genpolynom)-1 do
+  begin
+    t:=genpolynom[i];
+    for j := 2 downto 0 do
+      temp[i*3+2-j]:= (t and (1 shl j))shr(j)  ;       //oct2bin
+  end;
+
+  for i:=0 to Length(temp)-1 do
+ 	  exponents[i] := -1 + temp[Length(temp)-i-1];
+
+  g:=GFX.Create(n+1,Length(temp));
+  g.set_field_values(n+1,exponents);
+
+end;
+
+function   BCH.Showg: string;
+Begin
+  Result:=g.tostring;
+End;
+
+
+  constructor BCH.Create(const genpolynom : string );
+  var counter,i, max_counter, local_begin :integer;
+
+       factor, g0:GFX;
+  begin
+    //fix the generator polynomil g(x).
+    g0:=GFX.Create(2,genpolynom);
+
+    //find n
+    i:=g0.get_true_degree;
+    if(i>0) then
+    repeat
+      inc(i);
+      factor:=GFX.Create(2,i);
+      factor.coeffs[0].set_field_value(2,0);
+      factor.coeffs[i].set_field_value(2,0);
+    until (      GF_x.modd(factor,g0).get_true_degree=-1      )
+    else i:=1;
+    n := i;
+
+    //find   k
+    k :=n-g0.get_true_degree ;
+
+    // set polinom
+    g:=GFX.Create(n+1,genpolynom);
+    SetLength(zeroes,n);
+    for i := 0 to n-1 do
+      zeroes[i]:=g.Count(GF.Create(n+1,i));
+
+      // find t
+    counter:=0;
+    max_counter:=0; // length of max chain
+    chain_begin:=0;
+    for I := 0 to n - 1 do
+      if(Equal (zeroes[i],(GF.Create(n+1,-1)) )     ) then
+      begin
+        if(counter=0) then local_begin:=i;
+        inc(counter);
+        if(counter>max_counter) then
+        begin
+          max_counter:=counter;
+          chain_begin:=local_begin;
+        end;
+      end
+      else
+        counter:=0;
+
+    t := max_counter div 2;
+
+  end;
+
+
+  // Copy constructor
+  constructor BCH.Create(const inbch: BCH);
+  begin
+    n := inbch.n;
+    k := inbch.k;
+    t := inbch.t;
+    g:=GFX.Create(inbch.g);
+  end;
+
+  function BCH.Encode(const  inuncodedbits : bvec) : bvec;
+  var i,j,itterations,degree :integer;
+          m,c: GFX;
+          outbit,mbit,cbit, uncodedbits: bvec;
+          one:GF;
+  begin
+
+  setlength(uncodedbits,length(inuncodedbits));
+    for i:=0 to Length(inuncodedbits) - 1 do
+      uncodedbits[i]:= inuncodedbits[i];
+      
+    itterations := ( length(uncodedbits) div k );
+    if( length(uncodedbits) mod k <>0) then
+      inc(itterations);
+    setlength(uncodedbits,itterations*k)  ;
+    for i:=length(uncodedbits) to itterations*k-1 do
+       uncodedbits[i]:=0;
+
+    m:= GFX.Create(n+1,k);
+    c:= GFX.Create(n+1,n);
+
+    SetLength(Result,itterations*n);
+    SetLength(mbit,k);
+    SetLength(cbit,n);
+
+    One:=GF.Create(n+1,0);
+
+    for i:=0 to itterations-1 do
+    begin
+
+  	//Fix the message polynom m(x). mbit = uncodedbits.mid(i*k,k);
+      for j:=0  to k - 1 do
+        mbit[j]:=uncodedbits[i*k+j];
+
+       for j:=0 to k-1  do
+       begin
+  	    degree:= -1 + mbit[j];
+  	    m.coeffs[j].set_field_value(n+1,degree);
+  	    end;
+
+      //Fix the outputbits cbit.
+  	     c:=GF_x.Mul(g,m);
+
+  	  for j:=0 to n-1 do
+  	    if ( Equal(c.coeffs[j],One) ) then 	cbit[j]:= 1
+  	    else cbit[j]:= 0;
+
+  	 for j:=0 to n-1 do
+     Result[i*n+j]:=cbit[j];
+
+    end;
+
+
+  end;
+
+
+  function BCH.Decode(const  incodedbits : bvec) : bvec ;
+  var j, i, degree, kk, foundzeros, itterations, ii:integer;
+    r,c,m,S,Lambda,OldLambda, Tpoly, Ohmega, One, x, x2:GFX;
+    delta, temp, Zero:GF;
+    codedbits, outvec, rbin, rmin ,mbin: bvec     ;
+    errorpos : ivec;
+    cisvalid: boolean;
+  begin
+  // copy   incodedbits to  codedbits
+    setlength(codedbits,length(incodedbits));
+    for i:=0 to Length(incodedbits) - 1 do
+      codedbits[i]:= incodedbits[i];
+
+    // set rest elements of codedbits to zeroes
+    itterations := ( length(codedbits) div n );
+    if( length(codedbits) mod n <>0) then
+      inc(itterations);
+    setlength(codedbits,itterations*n)  ;
+    for i:=length(codedbits) to itterations*n-1 do
+       codedbits[i]:=0;
+
+    SetLength(outvec, itterations*k);
+    SetLength(rbin, n);
+    SetLength(mbin, k);
+
+    r:=GFX.Create(n+1,n-1);//input polinom
+    c:=GFX.Create(n+1,n-1);//code polinom
+    m:=GFX.Create(n+1,k-1);//inf polinom
+    S:=GFX.Create(n+1,2*t) ;//sindrom polinom
+
+    Lambda:= GFX.Create(n+1);//error polinom
+    OldLambda:=GFX.Create(n+1,n);
+    Tpoly:=GFX.Create(n+1);
+    Ohmega:=GFX.Create(n+1); //mul(Lambda,S)
+
+    One :=GFX.Create(n+1,'1');
+    x :=GFX.Create(n+1,'01'); //x^1
+    x2 :=GFX.Create(n+1,'001');  //x^2
+
+    Zero:=GF.Create(n+1,-1) ;//zero element
+    delta:=GF.Create(n+1);//disctintion on itteration
+
+    temp:= GF.Create(n+1);//means of Lambda in point
+
+
+    for i:=0 to  itterations-1 do
+    begin   //Fix the received polynomial r(x)
+
+    //copy current part(it's length is n) of codebits to rbin
+        for j:=0  to n - 1 do
+        rbin[j]:=codedbits[i*n+j];
+
+  // form input polinom by vector rbit
+	    for j:=0 to n-1 do
+      begin
+	    degree := -1 + rbin[j]; //transform 0 or 1 to it`s degree in field
+	    r.coeffs[j] := GF.Create(n+1,degree);
+      end;
+
+    //Fix the syndrome polynomial S(x).
+	    S.coeffs[0] := GF.Create(n+1,-1);
+      for j:=1 to 2*t do
+        S.coeffs[j] :=  r.count(GF.Create(n+1,j));
+
+      if (S.get_true_degree >= 1) then //Errors in the received word
+      begin            //Itterate to find Lambda(x).
+        kk:=0;
+        Lambda:=GFX.Create(n+1,'1');
+        Tpoly := GFX.Create(n+1,'1');
+        while (kk<t) do
+        begin
+          Ohmega := GF_x.Mul(Lambda , GF_x.Add(S , One));
+          delta := Ohmega.coeffs[2*kk+1];
+          OldLambda.Copy(Lambda);
+          Lambda := GF_x.Add(OldLambda , GF_x.Mul( GF_x.Mul(x,Tpoly), delta ));
+          if ( Equal(delta,Zero) or (OldLambda.get_degree > kk)) then
+            Tpoly := GF_x.Mul(x2 , Tpoly)
+          else
+            Tpoly := GF_x.Divv(GF_x.Mul(x , OldLambda ) , delta);
+          inc(kk );
+        end;
+
+
+
+         //Find the zeros to Lambda(x).
+	      Setlength(errorpos,Lambda.get_true_degree);
+	      foundzeros := 0;
+        for j := 0 to n - 1 do
+        begin
+          temp.Copy(Lambda.count(GF.Create(n+1,j)) );
+          if(Equal(temp,Zero)) then
+          begin
+            errorpos[foundzeros]:= (n-j) mod n;
+            inc(foundzeros);
+            if (foundzeros >= Lambda.get_true_degree )then
+              break;
+          end;
+        end;
+       
+	    //Correct the codeword.
+        for j:=0  to foundzeros - 1 do
+          rbin[errorpos[j]]:= (rbin[errorpos[j]]+1) mod 2;
+
+	    //Reconstruct the corrected codeword.
+      for j := 0 to n - 1 do
+      begin
+        degree := -1 + rbin[j];
+        c.coeffs[j] := GF.Create(n+1,degree);
+      end;
+      
+      //Code word validation.
+      S.coeffs[0]:=GF.Create(n+1,-1);
+      for j:=1 to 2*t do
+        S.coeffs[j]:=C.Count(GF.Create(n+1,j));
+      if(S.get_true_degree<=0) then //c(x) is a valid codeword.
+        cisvalid:=true
+      else
+        cisvalid:=false;(**)
+
+
+      end   //  if (S.get_true_degree >= 1)
+      else
+      begin
+        c:=GFX.Create(r);
+        cisvalid:=true;
+      end;
+
+      for j := 0 to Length(mbin)-1 do
+        mbin[j]:=0;
+      //Construct the message bit vector.
+	    if (cisvalid) then //c(x) is a valid codeword.
+      begin
+        if (c.get_true_degree> 1)  then
+        begin
+          m:=GF_x.divv(c, g);
+    //      FillChar(mbin, Length(mbin)*SizeOf(Byte), 0);
+          for j:=0 to m.get_true_degree do
+            mbin[j]:=m.coeffs[j].get_value+1;
+
+        end
+        else
+        begin   //The zero word was transmitted
+        //FillChar(mbin, Length(mbin), 0);
+          //ZeroMemory(@mbin, SizeOf(mbin)) ;
+		      m := GFX.Create(n+1,0);   // feel zeroes
+        end ;
+      end
+      else
+      begin        //Decoder failure.
+        //ZeroMemory(@mbin, SizeOf(mbin)) ;// feel zeroes
+       // FillChar(mbin, Length(mbin), 0);
+	      m := GFX.Create(n+1,0);
+      end;
+
+
+       for ii:=0 to Length(mbin)-1 do
+          outvec[i*k+ii]:= mbin[ii];
+
+    end;  // end of main loop ( by  i:=0 to  itterations-1 )
+
+
+     Result:=outvec;
+  end;
+
+ function BCH.GetCheckPolinom : GFX;
+ var mn:GFX;
+ begin
+ mn:=GFX.Create(n+1,n);
+ mn.coeffs[0].set_field_value(n+1,0);
+  mn.coeffs[n].set_field_value(n+1,0);
+
+  Result:=GFX.Create(n+1);
+  Result:=Divv(mn,g);
+ end;
+
+  function BCH.Sindrom(const  validatepol : GFX) : GFX;
+  begin
+     Result:=GFX.Create(n+1);
+  Result:=Modd(validatepol,g);
+  end;
+
+end.

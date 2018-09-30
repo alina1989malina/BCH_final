@@ -1,0 +1,259 @@
+unit gf;
+
+interface
+
+uses Math,Classes;
+
+ type
+  GField=class
+    private
+     var
+      q: array of integer;
+      m: byte;
+      value:integer;
+      alphapow,logalpha:array of array of integer;
+
+    public
+      Constructor Create;            overload;
+      constructor Create(var qvalue: integer);    overload;
+      constructor Create(var qvalue, inexp: integer);  overload;
+      constructor Create(const ingf: GField ); overload;
+      procedure set_size(var qvalue: integer);
+      procedure set_field_value(var qvalue, inexp : integer);
+
+       class operator Implicit(const v: GField): GField;
+  end;
+
+implementation
+
+constructor GField.Create;
+var i:integer;
+begin
+SetLength(q,15);
+
+for i:=0  to 14 do
+  q[i]:=1 shl i;
+
+  m:=0;
+end;
+
+constructor GField.Create(var qvalue: integer);
+var i:integer;
+begin
+  SetLength(q,15);
+  m:=0;
+
+  for i:=0  to 14 do
+    q[i]:=1 shl i;
+
+  if (qvalue=0) then// qvalue==0 gives the zeroth element
+			value:=-1
+  else set_size(qvalue);
+
+
+end;
+
+constructor GField.Create(var qvalue, inexp: integer);
+var i:integer;
+begin
+  SetLength(q,15);
+  m:=0;
+
+  for i:=0  to 14 do
+    q[i]:=1 shl i;
+
+  set_field_value(qvalue,inexp);
+
+
+end;
+
+// Copy constructor
+constructor GField.Create(const ingf: GField );
+var i:integer;
+begin
+  m:=0;
+  SetLength(q,15);
+
+  for i:=0  to 14 do
+    q[i]:=1 shl i;
+
+  m:=ingf.m; value:=ingf.value;
+
+end;
+
+procedure GField.set_field_value(var qvalue, inexp : integer);
+begin
+		set_size(qvalue);
+		value:=inexp;
+end;
+
+//int  gf::get_value() const
+{
+    return value;
+}
+
+procedure GField.set_size(var qvalue: integer) ;
+var i,mtemp,reduce,n,temp: integer;
+    const reducetable: array [0..12] of integer = (3,3,3,5,3,9,29,17,9,5,83,27,43);
+begin
+    mtemp:=0;
+
+    mtemp:=trunc(log10(qvalue)/log10(2.0));
+
+    //* Construct gf(q), q=2^m. From Wicker, "Error Control Systems  for digital communication and storage" pp. 463-465 */
+   // const int reducetable[]={3,3,3,5,3,9,29,17,9,5,83,27,43}; // starts at m=2,..,14
+
+	m:=mtemp;
+  SetLength(alphapow,m+1);
+    SetLength(logalpha,m+1);
+  for i := 0 to m do
+  begin
+   SetLength(alphapow[i],qvalue);
+       SetLength(logalpha[i],qvalue);
+  end;
+
+	//alphapow.newsize(m+1,qvalue);
+	//logalpha.newsize(m+1,qvalue);
+
+	if (m = 1) then // gf(2), special case
+
+ begin
+	 alphapow[1,0]:=1;
+	 logalpha[1,0]:=-1;
+    logalpha[1,1]:=0;
+ end
+	 else
+     begin
+	  reduce:=reducetable[m-2];
+	  alphapow[m,0]:=1; // alpha^0 = 1
+
+	  for n:=1 to (1 shl m)-2 do
+     begin
+     	 	temp:=alphapow[m,n-1];
+	 	temp:=(temp shl 1); // multiply by alpha
+	 	if ((temp and (1 shl m))<>0) then // contains alpha**m term
+      begin
+	 	  alphapow[m,n]:=(temp and not(1 shl m)) xor reduce;
+      end
+
+	 	else
+     begin
+	 	  alphapow[m,n]:=temp; // if no alpha**m term, store as is
+
+		// create table to go in opposite direction
+	 	 logalpha[m,n]:=-1; // special case, actually log(0)=-inf
+     end;
+           end;
+
+	  for n:=0 to ((1 shl m)-2) do
+    logalpha[m,alphapow[m,n]]:=n;
+
+	end;
+
+//end;
+   //overloading operations in the GField
+
+ //int gf::operator==(const gf &ingf) const
+{
+  if (value == -1 && ingf.value == -1)
+	return true;
+  if (m==ingf.m && value==ingf.value)
+	return true;
+  else
+	return false;
+}
+
+//int gf::operator!=(const gf &ingf) const
+{
+  gf tmp(*this);
+  return !(tmp==ingf);
+}
+
+class operator GField.Implicit(const ingf: GField): GField;
+begin
+       m:=ingf.m;
+  value:=ingf.value;
+
+end;
+
+
+//void gf::operator=(const gf &ingf)
+{
+  m=ingf.m;
+  value=ingf.value;
+}
+
+//void gf::operator=(const int inexp)
+{
+  //    it_assert0(m>0 && inexp>=-1 && inexp<(q[m]-1), "gf::op=, out of range");
+  value=inexp;
+}
+
+//void gf::operator+=(const gf &ingf)
+{
+  if (value == -1) {
+	value=ingf.value;
+	m=ingf.m;
+  }
+  //else if (ingf.value != -1) {
+	//	it_assert0(ingf.m == m, "gf::op+=, not same field");
+	//value=logalpha[m][alphapow[m][value] ^ alphapow[m][ingf.value]];
+  //}
+//}
+
+//gf gf::operator+(const gf &ingf) const
+{
+  gf tmp(*this);
+  tmp+=ingf;
+  return tmp;
+}
+
+//void gf::operator-=(const gf &ingf)
+{
+  (*this)+=ingf;
+}
+
+//gf gf::operator-(const gf &ingf) const
+{
+  gf tmp(*this);
+  tmp-=ingf;
+  return tmp;
+}
+
+//void gf::operator*=(const gf &ingf)
+{
+  if (value == -1 || ingf.value == -1)
+	value=-1;
+//  else {
+	//	it_assert0(ingf.m == m, "gf::op+=, not same field");
+	//value=(value+ingf.value)%(q[m]-1);
+  //}
+//}
+
+//gf gf::operator*(const gf &ingf) const
+{
+  gf tmp(*this);
+  tmp*=ingf;
+  return tmp;
+}
+
+//void gf::operator/=(const gf &ingf)
+{
+  assert(ingf.value !=-1); // no division by the zeroth element
+  if (value == -1)
+	value=-1;
+  else {
+	//	it_assert0(ingf.m == m, "gf::op+=, not same field");
+	value=(value-ingf.value+q[m]-1)%(q[m]-1);
+  //}
+//}
+
+//gf gf::operator/(const gf &ingf) const
+
+//  gf tmp(*this);
+  //tmp/=ingf;
+  //return tmp;
+
+end;
+
+end.

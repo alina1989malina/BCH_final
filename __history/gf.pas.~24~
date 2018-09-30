@@ -1,0 +1,170 @@
+unit gf;
+
+interface
+
+uses Math;
+
+ type
+  GField=class
+    private
+     var
+      q: array of integer;
+      m: byte;
+      value:integer;
+      alphapow,logalpha:array of array of integer;
+
+    public
+      Constructor Create;            overload;
+      constructor Create(var qvalue: integer);    overload;
+      constructor Create(var qvalue, inexp: integer);  overload;
+      constructor Create(const ingf: GField ); overload;
+      procedure set_size(var qvalue: integer);
+      procedure set_field_value(var qvalue, inexp : integer);
+
+      procedure Add(op1: GField; op2:GField);
+      procedure Sub(op1: GField; op2:GField);
+      procedure Mul(op1: GField; op2:GField);
+      procedure Equal(op1: GField; op2:GField);
+      procedure Divv(op1: GField; op2:GField);
+      function  get_value   :integer;
+  end;
+
+implementation
+
+constructor GField.Create;
+var i:integer;
+begin
+  SetLength(q,15);
+
+  for i:=0  to 14 do
+    q[i]:=1 shl i;
+
+    m:=0;
+end;
+
+constructor GField.Create(var qvalue: integer);
+var i:integer;
+begin
+  SetLength(q,15);
+  m:=0;
+
+  for i:=0  to 14 do
+    q[i]:=1 shl i;
+
+  if (qvalue=0) then// qvalue==0 gives the zeroth element
+			value:=-1
+  else set_size(qvalue);
+
+
+end;
+
+constructor GField.Create(var qvalue, inexp: integer);
+var i:integer;
+begin
+  SetLength(q,15);
+  m:=0;
+
+  for i:=0  to 14 do
+    q[i]:=1 shl i;
+
+  set_field_value(qvalue,inexp);
+
+
+end;
+
+// Copy constructor
+constructor GField.Create(const ingf: GField );
+var i:integer;
+begin
+  m:=0;
+  SetLength(q,15);
+
+  for i:=0  to 14 do
+    q[i]:=1 shl i;
+
+  m:=ingf.m; value:=ingf.value;
+
+end;
+
+procedure GField.set_field_value(var qvalue, inexp : integer);
+begin
+		set_size(qvalue);
+		value:=inexp;
+end;
+
+function  GField.get_value   :integer;
+//int  gf::get_value() const
+{
+    return value;
+}
+
+procedure GField.set_size(var qvalue: integer) ;
+var i,mtemp,reduce,n,temp: integer;
+  const reducetable: array [0..12] of integer = (3,3,3,5,3,9,29,17,9,5,83,27,43);
+begin
+  mtemp:=trunc(log10(qvalue)/log10(2.0));
+
+    //* Construct gf(q), q=2^m. From Wicker, "Error Control Systems  for digital communication and storage" pp. 463-465 */
+
+	m:=mtemp;
+  SetLength(alphapow,m+1);
+    SetLength(logalpha,m+1);
+  for i := 0 to m do
+  begin
+   SetLength(alphapow[i],qvalue);
+   SetLength(logalpha[i],qvalue);
+  end;
+
+	//alphapow.newsize(m+1,qvalue);
+	//logalpha.newsize(m+1,qvalue);
+
+  if (m = 1) then // gf(2), special case
+  begin
+	 alphapow[1,0]:=1;
+	 logalpha[1,0]:=-1;
+   logalpha[1,1]:=0;
+  end
+	 else
+     begin
+	  reduce:=reducetable[m-2];
+	  alphapow[m,0]:=1; // alpha^0 = 1
+
+	  for n:=1 to (1 shl m)-2 do
+     begin
+     	 	temp:=alphapow[m,n-1];
+	 	temp:=(temp shl 1); // multiply by alpha
+	 	if ((temp and (1 shl m))<>0) then // contains alpha**m term
+      begin
+	 	  alphapow[m,n]:=(temp and not(1 shl m)) xor reduce;
+      end
+
+	 	else
+     begin
+	 	  alphapow[m,n]:=temp; // if no alpha**m term, store as is
+
+		// create table to go in opposite direction
+	 	 logalpha[m,n]:=-1; // special case, actually log(0)=-inf
+     end;
+           end;
+
+	  for n:=0 to ((1 shl m)-2) do
+    logalpha[m,alphapow[m,n]]:=n;
+
+	end;
+
+
+
+procedure GField.Add(v: GField;v0: GField);
+begin
+//Result:=GField.Create;
+ //      m:=ingf.m;
+ // value:=ingf.value;
+
+//end;
+
+
+
+
+end;
+
+end.
